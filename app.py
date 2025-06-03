@@ -2,6 +2,8 @@ import os
 import flask
 import requests
 import logging
+from functools import wraps
+from werkzeug.security import safe_str_cmp
 
 app = flask.Flask(__name__)
 
@@ -9,10 +11,10 @@ KUBE_API_URL = "https://kubernetes.default.svc"
 TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 CA_CERT_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
-# Setup logging
+# Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-# Load token at startup
+# Load service account token
 with open(TOKEN_PATH, "r") as f:
     TOKEN = f.read().strip()
 
@@ -20,30 +22,32 @@ HEADERS = {
     "Authorization": f"Bearer {TOKEN}"
 }
 
-# Load allowed IPs from env
-ALLOWED_IPS = os.getenv("ALLOWED_IPS", "").split(",")
+# Auth credentials from environment
+USERNAME = os.getenv("PROXY_USERNAME")
+PASSWORD = os.getenv("PROXY_PASSWORD")
 
-def get_client_ip():
-    forwarded_for = flask.request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return flask.request.remote_addr
-
-@app.before_request
-def restrict_ip():
-    ip = get_client_ip()
-    if ip not in ALLOWED_IPS:
-        logging.warning(f"Blocked IP: {ip}")
-        return {"error": "Access denied"}, 403
-    logging.info(f"Allowed IP: {ip}")
+def require_auth(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        auth = flask.request.authorization
+        if not auth or not safe_str_cmp(auth.username, USERNAME) or not safe_str_cmp(auth.password, PASSWORD):
+            logging.warning("Unauthorized access attempt")
+            return flask.Response(
+                "Unauthorized", 401,
+                {"WWW-Authenticate": "Basic realm=\"Login Required\""}
+            )
+        return func(*args, **kwargs)
+    return wrapper
 
 @app.route("/", methods=["GET"])
+@require_auth
 def index():
     return {"message": "Kubernetes API proxy is running"}, 200
 
 @app.route("/<path:req_path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.route("/api/<path:req_path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.route("/apis/<path:req_path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@require_auth
 def proxy(req_path=""):
     full_path = flask.request.path
     method = flask.request.method
