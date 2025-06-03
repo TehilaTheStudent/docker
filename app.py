@@ -3,7 +3,7 @@ import flask
 import requests
 import logging
 from functools import wraps
-from werkzeug.security import safe_str_cmp
+import hmac
 
 app = flask.Flask(__name__)
 
@@ -30,7 +30,7 @@ def require_auth(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth = flask.request.authorization
-        if not auth or not safe_str_cmp(auth.username, USERNAME) or not safe_str_cmp(auth.password, PASSWORD):
+        if not auth or not hmac.compare_digest(auth.username, USERNAME) or not safe_str_cmp(auth.password, PASSWORD):
             logging.warning("Unauthorized access attempt")
             return flask.Response(
                 "Unauthorized", 401,
