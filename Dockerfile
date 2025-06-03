@@ -19,7 +19,11 @@ RUN apt-get update && apt-get install -y \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-RUN pip3 install flask requests
+RUN python3 -m venv /venv \
+ && /venv/bin/pip install --upgrade pip \
+ && /venv/bin/pip install flask requests
+
+ENV PATH="/venv/bin:$PATH"
 
 # Copy app
 COPY app.py /app.py
