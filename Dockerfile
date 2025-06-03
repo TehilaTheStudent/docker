@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-# Install Python, curl, and debugging tools
+# Install base system tools, Python, and venv support
 RUN apt-get update && apt-get install -y \
     curl \
     iputils-ping \
@@ -16,17 +16,19 @@ RUN apt-get update && apt-get install -y \
     traceroute \
     python3 \
     python3-pip \
+    python3-venv \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Create a virtual environment and install Python packages
 RUN python3 -m venv /venv \
  && /venv/bin/pip install --upgrade pip \
  && /venv/bin/pip install flask requests
 
+# Use the venv by default
 ENV PATH="/venv/bin:$PATH"
 
-# Copy app
+# Copy your app code
 COPY app.py /app.py
 
-# Start app
+# Start the app
 CMD ["python3", "/app.py"]
