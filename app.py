@@ -30,7 +30,7 @@ def require_auth(func):
     def wrapper(*args, **kwargs):
         auth = flask.request.authorization
         if not auth or auth.username != USERNAME or auth.password != PASSWORD:
-            logging.warning("Unauthorized access attempt")
+            logging.warning(f"Unauthorized access attempt. Provided username: {auth.username if auth else 'None'}, password: {auth.password if auth else 'None'}")
             return flask.Response(
                 "Unauthorized", 401,
                 {"WWW-Authenticate": "Basic realm=\"Login Required\""}
