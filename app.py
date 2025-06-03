@@ -9,16 +9,33 @@ KUBE_API_URL = "https://kubernetes.default.svc"
 TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 CA_CERT_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
-# Setup basic logging
+# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-# Load token once at startup
+# Load token at startup
 with open(TOKEN_PATH, "r") as f:
     TOKEN = f.read().strip()
 
 HEADERS = {
     "Authorization": f"Bearer {TOKEN}"
 }
+
+# Load allowed IPs from env
+ALLOWED_IPS = os.getenv("ALLOWED_IPS", "").split(",")
+
+def get_client_ip():
+    forwarded_for = flask.request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return flask.request.remote_addr
+
+@app.before_request
+def restrict_ip():
+    ip = get_client_ip()
+    if ip not in ALLOWED_IPS:
+        logging.warning(f"Blocked IP: {ip}")
+        return {"error": "Access denied"}, 403
+    logging.info(f"Allowed IP: {ip}")
 
 @app.route("/", methods=["GET"])
 def index():
